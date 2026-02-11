@@ -22,21 +22,16 @@ import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 public final class AttributeGuardListener implements Listener {
     private static final long RAPID_SWAP_WINDOW_TICKS = 1L;
     private static final double MAX_ATTACK_DAMAGE_MODIFIER = 2048.0;
     private static final double MAX_ATTACK_SPEED_MODIFIER = 32.0;
 
-    private static final Set<Attribute> HAND_RESTRICTED_ATTRIBUTES = EnumSet.of(
+    private static final Set<Attribute> HAND_RESTRICTED_ATTRIBUTES = Set.of(
             Attribute.ATTACK_DAMAGE,
             Attribute.ATTACK_SPEED,
             Attribute.BLOCK_BREAK_SPEED
@@ -69,14 +64,14 @@ public final class AttributeGuardListener implements Listener {
         ItemStack newSnapshot = state.getSnapshot(event.getNewSlot());
 
         if (rapidSwap) {
-            scheduleDelayed(player, 1L, task -> {
+            scheduleDelayed(player, task -> {
                 enforceSnapshot(player, event.getPreviousSlot(), previousSnapshot, "rapid-swap previous-slot rollback");
                 enforceSnapshot(player, event.getNewSlot(), newSnapshot, "rapid-swap new-slot rollback");
             });
         }
 
         state.lastSwapTick = tick;
-        scheduleDelayed(player, 1L, task -> validateAndSnapshot(player, "held-slot-change"));
+        scheduleDelayed(player, task -> validateAndSnapshot(player, "held-slot-change"));
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -87,11 +82,11 @@ public final class AttributeGuardListener implements Listener {
         long tick = getCurrentTick();
         if (tick - state.lastSwapTick <= RAPID_SWAP_WINDOW_TICKS) {
             ItemStack offhandSnapshot = state.offhandSnapshot == null ? null : state.offhandSnapshot.clone();
-            scheduleDelayed(player, 1L, task -> enforceOffhandSnapshot(player, offhandSnapshot, "rapid-swap offhand rollback"));
+            scheduleDelayed(player, task -> enforceOffhandSnapshot(player, offhandSnapshot));
         }
 
         state.lastSwapTick = tick;
-        scheduleDelayed(player, 1L, task -> validateAndSnapshot(player, "swap-hands"));
+        scheduleDelayed(player, task -> validateAndSnapshot(player, "swap-hands"));
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -104,7 +99,7 @@ public final class AttributeGuardListener implements Listener {
             return;
         }
 
-        scheduleDelayed(player, 1L, task -> validateAndSnapshot(player, "inventory-click:" + event.getAction()));
+        scheduleDelayed(player, task -> validateAndSnapshot(player, "inventory-click:" + event.getAction()));
     }
 
     private boolean isRelevantClick(InventoryClickEvent event) {
@@ -185,13 +180,13 @@ public final class AttributeGuardListener implements Listener {
             return;
         }
 
-        if (!matchesSnapshot(current, snapshot)) {
+        if (matchesSnapshot(current, snapshot)) {
             inventory.setItem(slot, snapshot == null ? null : snapshot.clone());
             logRollback(player, source, slot, current, snapshot);
         }
     }
 
-    private void enforceOffhandSnapshot(Player player, ItemStack snapshot, String source) {
+    private void enforceOffhandSnapshot(Player player, ItemStack snapshot) {
         if (!player.isOnline()) {
             return;
         }
@@ -202,20 +197,20 @@ public final class AttributeGuardListener implements Listener {
             return;
         }
 
-        if (!matchesSnapshot(current, snapshot)) {
+        if (matchesSnapshot(current, snapshot)) {
             inventory.setItemInOffHand(snapshot == null ? null : snapshot.clone());
-            logRollback(player, source, -1, current, snapshot);
+            logRollback(player, "rapid-swap offhand rollback", -1, current, snapshot);
         }
     }
 
     private boolean matchesSnapshot(ItemStack current, ItemStack snapshot) {
         if (isEmpty(current) && snapshot == null) {
-            return true;
-        }
-        if (snapshot == null || current == null) {
             return false;
         }
-        return current.equals(snapshot);
+        if (snapshot == null || current == null) {
+            return true;
+        }
+        return !current.equals(snapshot);
     }
 
     private ItemStack sanitizeItem(ItemStack original, Player player, String source) {
@@ -261,7 +256,8 @@ public final class AttributeGuardListener implements Listener {
 
         Material material = stack.getType();
         for (Attribute attribute : meta.getAttributeModifiers().keySet()) {
-            for (AttributeModifier modifier : List.copyOf(meta.getAttributeModifiers(attribute))) {
+            assert attribute != null;
+            for (AttributeModifier modifier : List.copyOf(Objects.requireNonNull(meta.getAttributeModifiers(attribute)))) {
                 if (isHandRelated(modifier) && !isAttributeAllowedForMaterial(material, attribute)) {
                     meta.removeAttributeModifier(attribute, modifier);
                     anomalies.add("Removed illegal attribute " + attribute + " for material " + material);
@@ -324,7 +320,7 @@ public final class AttributeGuardListener implements Listener {
 
     private boolean isHandRelated(AttributeModifier modifier) {
         EquipmentSlotGroup group = modifier.getSlotGroup();
-        return group == null || group == EquipmentSlotGroup.HAND || group == EquipmentSlotGroup.MAINHAND;
+        return group == EquipmentSlotGroup.HAND || group == EquipmentSlotGroup.MAINHAND;
     }
 
     private boolean isEmpty(ItemStack stack) {
@@ -361,8 +357,8 @@ public final class AttributeGuardListener implements Listener {
                 + " | Region=" + region);
     }
 
-    private void scheduleDelayed(Player player, long delayTicks, java.util.function.Consumer<ScheduledTask> consumer) {
-        player.getScheduler().runDelayed(plugin, consumer, null, delayTicks);
+    private void scheduleDelayed(Player player, Consumer<ScheduledTask> consumer) {
+        player.getScheduler().runDelayed(plugin, consumer, null, 1L);
     }
 
     private long getCurrentTick() {
@@ -380,7 +376,7 @@ public final class AttributeGuardListener implements Listener {
                 hotbarSnapshot[i] = stack == null ? null : stack.clone();
             }
             ItemStack offhand = inventory.getItemInOffHand();
-            offhandSnapshot = offhand == null ? null : offhand.clone();
+            offhandSnapshot = offhand.clone();
         }
 
         private ItemStack getSnapshot(int slot) {
