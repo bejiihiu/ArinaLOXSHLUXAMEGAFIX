@@ -6,12 +6,12 @@ public final class Main extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        // Plugin startup logic
-
+        getServer().getPluginManager().registerEvents(new AttributeGuardListener(this), this);
+        getLogger().info("AttributeGuard enabled");
     }
 
     @Override
     public void onDisable() {
-        // Plugin shutdown logic
+        getLogger().info("AttributeGuard disabled");
     }
 }
