@@ -1,0 +1,6 @@
+name: ArinaLOXSHLUXAMEGAFIX
+version: '666'
+main: kz.bejiihiu.arinaLOXSHLUXAMEGAFIX.Main
+api-version: '1.21'
+load: STARTUP
+authors: [ bejiihiu.xs ]
