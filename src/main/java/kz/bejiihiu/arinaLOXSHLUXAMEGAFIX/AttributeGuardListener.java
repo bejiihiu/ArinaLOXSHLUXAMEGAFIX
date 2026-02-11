@@ -50,6 +50,10 @@ public final class AttributeGuardListener implements Listener {
         PlayerGuardState state = states.computeIfAbsent(player.getUniqueId(), ignored -> new PlayerGuardState());
         state.refreshSnapshot(player.getInventory());
         state.lastSwapTick = getCurrentTick();
+
+        plugin.getLogger().info("[AttributeGuard] Initialized guard state"
+                + " | Player=" + player.getName()
+                + " | Tick=" + state.lastSwapTick);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -59,6 +63,13 @@ public final class AttributeGuardListener implements Listener {
 
         long tick = getCurrentTick();
         boolean rapidSwap = tick - state.lastSwapTick <= RAPID_SWAP_WINDOW_TICKS;
+
+        plugin.getLogger().info("[AttributeGuard] Held slot change detected"
+                + " | Player=" + player.getName()
+                + " | PreviousSlot=" + event.getPreviousSlot()
+                + " | NewSlot=" + event.getNewSlot()
+                + " | Tick=" + tick
+                + " | RapidSwap=" + rapidSwap);
 
         ItemStack previousSnapshot = state.getSnapshot(event.getPreviousSlot());
         ItemStack newSnapshot = state.getSnapshot(event.getNewSlot());
@@ -83,6 +94,10 @@ public final class AttributeGuardListener implements Listener {
         if (tick - state.lastSwapTick <= RAPID_SWAP_WINDOW_TICKS) {
             ItemStack offhandSnapshot = state.offhandSnapshot == null ? null : state.offhandSnapshot.clone();
             scheduleDelayed(player, task -> enforceOffhandSnapshot(player, offhandSnapshot));
+
+            plugin.getLogger().info("[AttributeGuard] Rapid hand swap detected"
+                    + " | Player=" + player.getName()
+                    + " | Tick=" + tick);
         }
 
         state.lastSwapTick = tick;
@@ -96,8 +111,16 @@ public final class AttributeGuardListener implements Listener {
         }
 
         if (!isRelevantClick(event)) {
+            plugin.getLogger().info("[AttributeGuard] Ignored inventory click"
+                    + " | Actor=" + event.getWhoClicked().getName()
+                    + " | Action=" + event.getAction());
             return;
         }
+
+        plugin.getLogger().info("[AttributeGuard] Relevant inventory click detected"
+                + " | Player=" + player.getName()
+                + " | Action=" + event.getAction()
+                + " | Slot=" + event.getSlot());
 
         scheduleDelayed(player, task -> validateAndSnapshot(player, "inventory-click:" + event.getAction()));
     }
@@ -127,8 +150,15 @@ public final class AttributeGuardListener implements Listener {
 
     private void validateAndSnapshot(Player player, String source) {
         if (!player.isOnline()) {
+            plugin.getLogger().info("[AttributeGuard] Skipped validation for offline player"
+                    + " | Player=" + player.getName()
+                    + " | Source=" + source);
             return;
         }
+
+        plugin.getLogger().info("[AttributeGuard] Validating inventory state"
+                + " | Player=" + player.getName()
+                + " | Source=" + source);
 
         PlayerInventory inventory = player.getInventory();
         PlayerGuardState state = states.computeIfAbsent(player.getUniqueId(), ignored -> new PlayerGuardState());
@@ -357,6 +387,9 @@ public final class AttributeGuardListener implements Listener {
     }
 
     private void scheduleDelayed(Player player, Consumer<ScheduledTask> consumer) {
+        plugin.getLogger().info("[AttributeGuard] Scheduling delayed validation"
+                + " | Player=" + player.getName()
+                + " | DelayTicks=1");
         player.getScheduler().runDelayed(plugin, consumer, null, 1L);
     }
 
