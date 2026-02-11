@@ -110,7 +110,6 @@ public final class AttributeGuardListener implements Listener {
         InventoryAction action = event.getAction();
         return switch (action) {
             case HOTBAR_SWAP,
-                 HOTBAR_MOVE_AND_READD,
                  MOVE_TO_OTHER_INVENTORY,
                  PICKUP_ALL,
                  PICKUP_HALF,
